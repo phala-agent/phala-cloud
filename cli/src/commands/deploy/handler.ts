@@ -21,6 +21,7 @@ import {
 	CvmIdSchema,
 	MAX_COMPOSE_PAYLOAD_BYTES,
 	ResourceError,
+	SUPPORTED_CHAINS,
 	createClient,
 	encryptEnvVars,
 	formatStructuredError,
@@ -1127,9 +1128,23 @@ const updateCvm = async (
 			console.log("[DEBUG] patchCvm.deviceId:", result.deviceId);
 		}
 
+		// Resolve viem chain from chain_id. The SDK schema only injects `chain`
+		// when chain_id is in SUPPORTED_CHAINS, so resolving from chain_id directly
+		// gives a clearer error for unsupported chains.
+		const cvmChainId = cvm.kms_info?.chain_id;
+		const cvmChain =
+			cvmChainId != null ? SUPPORTED_CHAINS[cvmChainId] : undefined;
+		if (!cvmChain) {
+			throw new Error(
+				cvmChainId != null
+					? `CVM chain id ${cvmChainId} is not supported by this CLI build`
+					: "CVM kms_info is missing chain_id",
+			);
+		}
+
 		// Check on-chain prerequisites (device + compose hash status)
 		const prereqs = await safeCheckOnChainPrerequisites({
-			chain: cvm.kms_info?.chain,
+			chain: cvmChain,
 			rpcUrl: validatedOptions.rpcUrl,
 			appAddress: cvm.app_id as `0x${string}`,
 			deviceId: result.deviceId,
@@ -1152,7 +1167,7 @@ const updateCvm = async (
 		if (!prereqs.data.deviceAllowed) {
 			logger.info("Device not registered on-chain, adding...");
 			const deviceResult = await safeAddDevice({
-				chain: cvm.kms_info?.chain,
+				chain: cvmChain,
 				rpcUrl: validatedOptions.rpcUrl,
 				appAddress: cvm.app_id as `0x${string}`,
 				deviceId: result.deviceId,
@@ -1169,7 +1184,7 @@ const updateCvm = async (
 
 		// Register compose hash on-chain (idempotent — always send to get a real tx hash)
 		const receipt_result = await safeAddComposeHash({
-			chain: cvm.kms_info?.chain,
+			chain: cvmChain,
 			rpcUrl: validatedOptions.rpcUrl,
 			appId: cvm.app_id as `0x${string}`,
 			composeHash: result.composeHash,

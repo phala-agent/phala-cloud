@@ -37,6 +37,7 @@ export {
   formatValidationErrors,
   formatErrorMessage,
   formatStructuredError,
+  formatStructuredErrorDetailValue,
   getErrorMessage,
   // Conflict helpers
   isConflictError,
